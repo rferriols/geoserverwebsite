@@ -49,6 +49,17 @@
     tiled: true
   }).addTo(map);
 
+  // Add the "tedwilliamstunnelloop" layer
+  const tedWilliamsTunnelLoopLayer = L.tileLayer.wms(wmsUrl, {
+    layers: 'massgisdemo:tedwilliamstunnelloop',
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  tedWilliamsTunnelLoopLayer.on('tileerror', (e) => console.error('Ted Williams Tunnel Loop WMS tile error', e));
+
   // 4) Add animated WMS layer (on top)
   let currentLayerIndex = 0;
   const animatedLayers = [
