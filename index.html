@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>GeoServer WMS + OSM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1/dist/leaflet.css"/>
+  <style>html,body,#map{height:100%;margin:0}</style>
+</head>
+<body>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1/dist/leaflet.js"></script>
+<script>
+  // 1) Create map in Web Mercator
+  const map = L.map('map').setView([42.34152793113105, -71.06430509362345], 16);
+
+  // 2) Base map (OSM)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // 3) WMS overlay (static layers first)
+  const wmsUrl = 'http://10.95.1.28:8886/geoserver/wms';
+
+  const roadwayLayer = L.tileLayer.wms(wmsUrl, {
+    layers: 'massgisdemo:massgisdemo__roadway',
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  // Add the "tedwilliamstunnel1" layer
+  const tedWilliamsTunnelLayer1 = L.tileLayer.wms(wmsUrl, {
+    layers: 'massgisdemo:tedwilliamstunnel1',
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  // Add the "tedwilliamstunnel2" layer
+  const tedWilliamsTunnelLayer2 = L.tileLayer.wms(wmsUrl, {
+    layers: 'massgisdemo:tedwilliamstunnel4',
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  // 4) Add animated WMS layer (on top)
+  let currentLayerIndex = 0;
+  const animatedLayers = [
+    'massgisdemo:iamalarmed'
+  ];
+
+  const animatedWmsLayer = L.tileLayer.wms(wmsUrl, {
+    layers: animatedLayers[currentLayerIndex],
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  setInterval(() => {
+    currentLayerIndex = (currentLayerIndex + 1) % animatedLayers.length; // Cycle through layers
+    animatedWmsLayer.setParams({ layers: animatedLayers[currentLayerIndex] });   // Update the layer
+  }, 2000); // Change layer every 2 seconds
+
+  // Add the "dividers" layer on top of everything
+  const dividersLayer = L.tileLayer.wms(wmsUrl, {
+    layers: 'massgisdemo:massgisdemo__dividers',
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  // Optional: click to see if tiles are loading
+  animatedWmsLayer.on('tileerror', (e) => console.error('Animated WMS tile error', e));
+  dividersLayer.on('tileerror', (e) => console.error('Dividers WMS tile error', e));
+  roadwayLayer.on('tileerror', (e) => console.error('Roadway WMS tile error', e));
+  tedWilliamsTunnelLayer1.on('tileerror', (e) => console.error('Ted Williams Tunnel 1 WMS tile error', e));
+  tedWilliamsTunnelLayer2.on('tileerror', (e) => console.error('Ted Williams Tunnel 2 WMS tile error', e));
+</script>
+</body>
+</html>
