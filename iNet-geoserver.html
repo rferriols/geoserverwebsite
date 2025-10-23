@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MassDot Tunnels</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1/dist/leaflet.css"
+    />
+    <style>
+      html,
+      body,
+      #map {
+        height: 100%;
+        margin: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <script src="https://unpkg.com/leaflet@1/dist/leaflet.js"></script>
+    <script>
+      // 1) Create map in Web Mercator
+      //const map = L.map('map').setView([42.346070, -71.059578], 16);
+      const map = L.map("map").setView(
+        [42.36830611868643, -71.04633693626431],
+        16
+      );
+
+      // 2) Base map (OSM)
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        maxZoom: 20,
+        attribution: "&copy; OpenStreetMap contributors",
+      }).addTo(map);
+
+      // 3) WMS overlay for "massgisdemo:massgisdemo__roadway" with custom style
+      //const wmsUrl = 'http://localhost:8886/geoserver/wms';
+      const wmsUrl = "http://10.95.2.87:8886/geoserver/wms";
+      const tunnelBaseLayer = L.tileLayer
+        .wms(wmsUrl, {
+          layers: "iNet:massgis_overpass_tunnels",
+          //styles: 'iNet:TunnelsAttributeStyles', // Apply the GeoServer style
+          format: "image/png",
+          transparent: true,
+          version: "1.1.1",
+          tiled: true,
+        })
+        .addTo(map);
+
+      //Styles are no being applied on Geoserver using the TunnelsAttributeStyles rule based style
+      /**
+  const tunnelLayer1 = L.tileLayer.wms(wmsUrl, {
+    layers: 'iNet:massgis_overpass_tunnels',
+    styles: 'iNet:CallahanTunnel',  // Apply the GeoServer style
+    CQL_FILTER: "name='Callahan Tunnel'",
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+    const tunnelLayer2 = L.tileLayer.wms(wmsUrl, {
+    layers: 'iNet:massgis_overpass_tunnels',
+    styles: 'iNet:SumnerTunnel',  // Apply the GeoServer style
+    CQL_FILTER: "name='Sumner Tunnel'",
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+
+  // Add the "dividers" layer on top of everything =============================================================
+  const dividersLayer = L.tileLayer.wms(wmsUrl, {
+    layers: 'iNet:massgis_overpass_tunnels',
+    styles: 'iNet:dividers',  // Apply the GeoServer style
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+**/
+      // Optional: Log tile errors
+      roadwayLayer.on("tileerror", (e) =>
+        console.error("Roadway WMS tile error", e)
+      );
+    </script>
+  </body>
+</html>
