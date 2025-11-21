@@ -29,17 +29,22 @@
       );
 
       // 2) Base map (OSM)
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 20,
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
+      // L.tileLayer("http://10.95.2.210:8080/data/tiles/{z}/{x}/{y}.pbf", {
+      L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
+        {
+          maxZoom: 20,
+          attribution: "&copy; OpenStreetMap contributors",
+        }
+      ).addTo(map);
 
       // 3) WMS overlay for "massgisdemo:massgisdemo__roadway" with custom style
       //const wmsUrl = 'http://localhost:8886/geoserver/wms';
       const wmsUrl = "http://10.95.2.87:8886/geoserver/wms";
+
       const tunnelBaseLayer = L.tileLayer
         .wms(wmsUrl, {
-          layers: "iNet:massgis_overpass_tunnels",
+          layers: "iNet:massdot_tunnels_v3",
           //styles: 'iNet:TunnelsAttributeStyles', // Apply the GeoServer style
           format: "image/png",
           transparent: true,
@@ -48,39 +53,6 @@
         })
         .addTo(map);
 
-      //Styles are no being applied on Geoserver using the TunnelsAttributeStyles rule based style
-      /**
-  const tunnelLayer1 = L.tileLayer.wms(wmsUrl, {
-    layers: 'iNet:massgis_overpass_tunnels',
-    styles: 'iNet:CallahanTunnel',  // Apply the GeoServer style
-    CQL_FILTER: "name='Callahan Tunnel'",
-    format: 'image/png',
-    transparent: true,
-    version: '1.1.1',
-    tiled: true
-  }).addTo(map);
-
-    const tunnelLayer2 = L.tileLayer.wms(wmsUrl, {
-    layers: 'iNet:massgis_overpass_tunnels',
-    styles: 'iNet:SumnerTunnel',  // Apply the GeoServer style
-    CQL_FILTER: "name='Sumner Tunnel'",
-    format: 'image/png',
-    transparent: true,
-    version: '1.1.1',
-    tiled: true
-  }).addTo(map);
-
-
-  // Add the "dividers" layer on top of everything =============================================================
-  const dividersLayer = L.tileLayer.wms(wmsUrl, {
-    layers: 'iNet:massgis_overpass_tunnels',
-    styles: 'iNet:dividers',  // Apply the GeoServer style
-    format: 'image/png',
-    transparent: true,
-    version: '1.1.1',
-    tiled: true
-  }).addTo(map);
-**/
       // Optional: Log tile errors
       roadwayLayer.on("tileerror", (e) =>
         console.error("Roadway WMS tile error", e)
