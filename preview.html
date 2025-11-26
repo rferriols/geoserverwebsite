@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SLD Style Editor: Schematic View</title>
+    <style>
+        :root {
+            --bg-color: #f4f4f9;
+            --sidebar-width: 350px;
+            --primary-color: #007bff;
+            --border-color: #ddd;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: var(--sidebar-width);
+            background: white;
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        .sidebar-header {
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
+            background: #fff;
+        }
+        .sidebar-header h2 { margin: 0; font-size: 1.2rem; color: #333; }
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+        }
+        .sidebar-footer {
+            padding: 15px;
+            border-top: 1px solid var(--border-color);
+            background: #f9f9f9;
+            text-align: center;
+        }
+
+        /* Controls */
+        .control-group { margin-bottom: 20px; border-bottom: 1px solid #eee; padding-bottom: 15px; }
+        .control-group:last-child { border-bottom: none; }
+        .control-group h3 { margin: 0 0 10px 0; font-size: 0.95rem; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .input-row { display: flex; align-items: center; margin-bottom: 8px; }
+        .input-row label { flex: 1; font-size: 0.85rem; color: #666; }
+        .input-row input[type="color"] { width: 40px; height: 25px; border: none; padding: 0; cursor: pointer; }
+        .input-row input[type="number"], .input-row input[type="text"] { 
+            width: 60px; padding: 4px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; 
+        }
+        .input-row input[type="text"] { width: 100px; }
+
+        /* Accordion */
+        .accordion-item { border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 8px; overflow: hidden; }
+        .accordion-header {
+            background: #f8f9fa;
+            padding: 10px 15px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .accordion-header:hover { background: #e9ecef; }
+        .accordion-content { display: none; padding: 10px; background: white; }
+        .accordion-content.active { display: block; }
+
+        /* Main Preview Area */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .preview-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            max-width: 1200px;
+            margin-bottom: 40px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            padding: 15px;
+            width: 200px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .card:hover { transform: translateY(-2px); }
+        .card h4 { margin: 0 0 5px 0; color: #6d6d6d; }
+        .card .meta { font-size: 0.75rem; color: #888; margin-bottom: 10px; height: 2.5em; }
+
+        svg {
+            background-color: #4c4c4c;
+            border: 1px solid #ccc;
+            display: block;
+            margin: 0 auto;
+        }
+
+        /* Buttons */
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            width: 100%;
+        }
+        .btn:hover { background-color: #0056b3; }
+
+        /* Modal */
+        .modal {
+            display: none; 
+            position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; 
+            background-color: rgba(0,0,0,0.5); 
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 800px;
+            border-radius: 8px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .close { color: #aaa; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover { color: black; }
+        textarea { width: 100%; height: 400px; font-family: monospace; padding: 10px; border: 1px solid #ccc; resize: vertical; }
+
+    </style>
+</head>
+<body>
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>Style Editor</h2>
+        </div>
+        <div class="sidebar-content" id="controls">
+            <!-- Global Colors -->
+            <div class="control-group">
+                <h3>Global Colors</h3>
+                <div class="input-row">
+                    <label>Tunnel Casing</label>
+                    <input type="color" id="col-tun-casing" value="#F5EA64">
+                </div>
+                <div class="input-row">
+                    <label>Tunnel Pavement</label>
+                    <input type="color" id="col-tun-pave" value="#474747">
+                </div>
+                <div class="input-row">
+                    <label>Surface Casing</label>
+                    <input type="color" id="col-surf-casing" value="#FFF0AD">
+                </div>
+                <div class="input-row">
+                    <label>Surface Pavement</label>
+                    <input type="color" id="col-surf-pave" value="#737373">
+                </div>
+                <div class="input-row">
+                    <label>Markings</label>
+                    <input type="color" id="col-mark" value="#FFFFA8">
+                </div>
+            </div>
+
+            <!-- Zoom Levels Container -->
+            <div id="zoom-controls"></div>
+        </div>
+        <div class="sidebar-footer">
+            <button class="btn" onclick="showXML()">Get SLD XML</button>
+        </div>
+    </div>
+
+    <!-- MAIN PREVIEW -->
+    <div class="main-content">
+        <h1 style="margin-bottom: 30px; color: #444;">Live Preview</h1>
+        <div id="preview-area"></div>
+    </div>
+
+    <!-- XML MODAL -->
+    <div id="xmlModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Generated SLD XML Snippets</h3>
+                <span class="close" onclick="closeModal()">&times;</span>
+            </div>
+            <p style="font-size: 0.9em; color: #666;">Copy these blocks into your SLD file.</p>
+            <textarea id="xmlOutput" readonly></textarea>
+        </div>
+    </div>
+
+    <script>
+        // --- INITIAL CONFIGURATION (From SLD) ---
+        const config = {
+            colors: {
+                tunnelCasing: '#F5EA64',
+                tunnelPave: '#474747',
+                surfaceCasing: '#FFF0AD',
+                surfacePave: '#737373',
+                marking: '#FFFFA8'
+            },
+            zooms: [
+                {
+                    id: 'z4k',
+                    label: 'Zoom < 1:4000',
+                    minScale: 0, maxScale: 4000,
+                    markings: { width: 2.3, dash: '8 8', opacity: 0.4 },
+                    lanes: {
+                        1: { casing: 22, pave: 14, offset: 8.05, markOffsets: [] },
+                        2: { casing: 29, pave: 21, offset: 8.05, markOffsets: [8.05] },
+                        3: { casing: 39.5, pave: 31.5, offset: 8.05, markOffsets: [2.7, 11.3] }, // Approx from Categorize
+                        4: { casing: 55.3, pave: 47.3, offset: 8.05, markOffsets: [-3.45, 8.05, 19.55] },
+                        5: { casing: 68, pave: 60, offset: 8.05, markOffsets: [-5.06, 3.68, 12.42, 21.1] }
+                    }
+                },
+                {
+                    id: 'z8k',
+                    label: 'Zoom 4k - 8k',
+                    minScale: 4000, maxScale: 8000,
+                    markings: { width: 2, dash: '8 8', opacity: 0.4 },
+                    lanes: {
+                        1: { casing: 14, pave: 8, offset: 7, markOffsets: [] },
+                        2: { casing: 24, pave: 16, offset: 7, markOffsets: [7] },
+                        3: { casing: 36.8, pave: 27.6, offset: 8.05, markOffsets: [3.105, 12.995] }, 
+                        4: { casing: 40, pave: 32, offset: 7, markOffsets: [-3, 7, 18.4] },
+                        5: { casing: 48, pave: 38, offset: 7, markOffsets: [-4.4, 3.2, 10.8, 18.4] }
+                    }
+                },
+                {
+                    id: 'z16k',
+                    label: 'Zoom 8k - 16k',
+                    minScale: 8000, maxScale: 16000,
+                    markings: { width: 1.5, dash: '8 8', opacity: 0.4 },
+                    lanes: {
+                        1: { casing: 10.5, pave: 6, offset: 5.25, markOffsets: [] },
+                        2: { casing: 18, pave: 12, offset: 5.25, markOffsets: [5.25] },
+                        3: { casing: 24, pave: 18, offset: 5.25, markOffsets: [2.025, 8.475] },
+                        4: { casing: 30, pave: 24, offset: 5.25, markOffsets: [-2.25, 5.25, 13.8] },
+                        5: { casing: 36, pave: 28.5, offset: 5.25, markOffsets: [-3.3, 2.4, 8.1, 13.8] }
+                    }
+                },
+                {
+                    id: 'z32k',
+                    label: 'Zoom 16k - 32k',
+                    minScale: 16000, maxScale: 32000,
+                    markings: { width: 1, dash: '8 8', opacity: 0.4 },
+                    lanes: {
+                        1: { casing: 7, pave: 4, offset: 3.5, markOffsets: [] },
+                        2: { casing: 12, pave: 8, offset: 3.5, markOffsets: [3.5] },
+                        3: { casing: 16, pave: 12, offset: 3.5, markOffsets: [1.35, 5.65] },
+                        4: { casing: 20, pave: 16, offset: 3.5, markOffsets: [-1.5, 3.5, 9.2] },
+                        5: { casing: 24, pave: 19, offset: 3.5, markOffsets: [-2.2, 1.6, 5.4, 9.2] }
+                    }
+                }
+            ]
+        };
+
+        // --- APP LOGIC ---
+
+        function init() {
+            renderControls();
+            renderPreview();
+            setupGlobalListeners();
+        }
+
+        function setupGlobalListeners() {
+            document.getElementById('col-tun-casing').addEventListener('input', (e) => { config.colors.tunnelCasing = e.target.value; renderPreview(); });
+            document.getElementById('col-tun-pave').addEventListener('input', (e) => { config.colors.tunnelPave = e.target.value; renderPreview(); });
+            document.getElementById('col-surf-casing').addEventListener('input', (e) => { config.colors.surfaceCasing = e.target.value; renderPreview(); });
+            document.getElementById('col-surf-pave').addEventListener('input', (e) => { config.colors.surfacePave = e.target.value; renderPreview(); });
+            document.getElementById('col-mark').addEventListener('input', (e) => { config.colors.marking = e.target.value; renderPreview(); });
+        }
+
+        function renderControls() {
+            const container = document.getElementById('zoom-controls');
+            container.innerHTML = '';
+
+            config.zooms.forEach((zoom, index) => {
+                const item = document.createElement('div');
+                item.className = 'accordion-item';
+                
+                const header = document.createElement('div');
+                header.className = 'accordion-header';
+                header.innerHTML = `<span>${zoom.label}</span> <span>&#9662;</span>`;
+                header.onclick = () => toggleAccordion(item);
+
+                const content = document.createElement('div');
+                content.className = 'accordion-content';
+                if (index === 0) content.classList.add('active'); // Open first by default
+
+                // Marking Settings
+                content.innerHTML += `
+                    <div class="control-group">
+                        <h3>Marking Style</h3>
+                        <div class="input-row"><label>Width</label><input type="number" step="0.1" value="${zoom.markings.width}" onchange="updateMarking(${index}, 'width', this.value)"></div>
+                        <div class="input-row"><label>Opacity</label><input type="number" step="0.1" max="1" value="${zoom.markings.opacity}" onchange="updateMarking(${index}, 'opacity', this.value)"></div>
+                    </div>
+                `;
+
+                // Lanes
+                for (let lane = 1; lane <= 5; lane++) {
+                    const l = zoom.lanes[lane];
+                    content.innerHTML += `
+                        <div class="control-group">
+                            <h3>Lane ${lane}</h3>
+                            <div class="input-row"><label>Casing Width</label><input type="number" step="0.5" value="${l.casing}" onchange="updateLane(${index}, ${lane}, 'casing', this.value)"></div>
+                            <div class="input-row"><label>Pave Width</label><input type="number" step="0.5" value="${l.pave}" onchange="updateLane(${index}, ${lane}, 'pave', this.value)"></div>
+                            <div class="input-row"><label>Main Offset</label><input type="number" step="0.05" value="${l.offset}" onchange="updateLane(${index}, ${lane}, 'offset', this.value)"></div>
+                            ${lane > 1 ? `<div class="input-row"><label>Mark Offsets</label><input type="text" value="${l.markOffsets.join(', ')}" onchange="updateMarkOffsets(${index}, ${lane}, this.value)"></div>` : ''}
+                        </div>
+                    `;
+                }
+
+                item.appendChild(header);
+                item.appendChild(content);
+                container.appendChild(item);
+            });
+        }
+
+        function toggleAccordion(item) {
+            const content = item.querySelector('.accordion-content');
+            content.classList.toggle('active');
+        }
+
+        // Update Functions
+        window.updateMarking = (zoomIdx, key, val) => {
+            config.zooms[zoomIdx].markings[key] = parseFloat(val);
+            renderPreview();
+        };
+        window.updateLane = (zoomIdx, lane, key, val) => {
+            config.zooms[zoomIdx].lanes[lane][key] = parseFloat(val);
+            renderPreview();
+        };
+        window.updateMarkOffsets = (zoomIdx, lane, val) => {
+            config.zooms[zoomIdx].lanes[lane].markOffsets = val.split(',').map(v => parseFloat(v.trim())).filter(n => !isNaN(n));
+            renderPreview();
+        };
+
+        // --- RENDER PREVIEW ---
+        function renderPreview() {
+            const area = document.getElementById('preview-area');
+            area.innerHTML = '';
+
+            config.zooms.forEach(zoom => {
+                const sectionTitle = document.createElement('h2');
+                sectionTitle.style.width = '100%';
+                sectionTitle.style.textAlign = 'center';
+                sectionTitle.style.borderBottom = '1px solid #ccc';
+                sectionTitle.style.marginTop = '30px';
+                sectionTitle.innerText = zoom.label;
+                area.appendChild(sectionTitle);
+
+                const grid = document.createElement('div');
+                grid.className = 'preview-grid';
+
+                for (let lane = 1; lane <= 5; lane++) {
+                    const l = zoom.lanes[lane];
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    card.innerHTML = `
+                        <h4>${lane} Lane${lane > 1 ? 's' : ''}</h4>
+                        <div class="meta">C: ${l.casing} | P: ${l.pave} | Off: ${l.offset}</div>
+                        ${generateSVG(l, zoom.markings)}
+                    `;
+                    grid.appendChild(card);
+                }
+                area.appendChild(grid);
+            });
+        }
+
+        function generateSVG(laneConfig, markConfig) {
+            const width = 100;
+            const height = 150;
+            const center = 50;
+            const drawX = center + laneConfig.offset;
+
+            let svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`;
+            
+            // Casing
+            svg += `<line x1="${drawX}" y1="10" x2="${drawX}" y2="140" stroke="${config.colors.tunnelCasing}" stroke-width="${laneConfig.casing}" stroke-linecap="butt" />`;
+            
+            // Pavement
+            svg += `<line x1="${drawX}" y1="10" x2="${drawX}" y2="140" stroke="${config.colors.tunnelPave}" stroke-width="${laneConfig.pave}" stroke-linecap="butt" />`;
+            
+            // Markings
+            if (laneConfig.markOffsets && laneConfig.markOffsets.length > 0) {
+                laneConfig.markOffsets.forEach(off => {
+                    // Markings are relative to the feature geometry (center 50), NOT the offset road center.
+                    // Based on SLD analysis, marking offsets were absolute from feature center.
+                    const markX = center + off;
+                    svg += `<line x1="${markX}" y1="10" x2="${markX}" y2="140" stroke="${config.colors.marking}" stroke-width="${markConfig.width}" stroke-dasharray="${markConfig.dash}" opacity="${markConfig.opacity}" />`;
+                });
+            }
+
+            // Arrow (approximate placement at drawX)
+            svg += `<path d="M${drawX} 75 l-6 12 h12 z" fill="white" />`;
+            
+            svg += `</svg>`;
+            return svg;
+        }
+
+        // --- XML GENERATION ---
+        window.showXML = () => {
+            let xml = `<!-- Generated SLD Snippets -->\n\n`;
+
+            // Helper to generate Recode block
+            const genRecode = (prop, map) => {
+                let s = `<ogc:Function name="Recode">\n  <ogc:PropertyName>lanes</ogc:PropertyName>\n`;
+                for (let i = 1; i <= 5; i++) {
+                    s += `  <ogc:Literal>${i}</ogc:Literal><ogc:Literal>${map[i]}</ogc:Literal>\n`;
+                }
+                s += `</ogc:Function>`;
+                return s;
+            };
+
+            config.zooms.forEach(zoom => {
+                xml += `<!-- ${zoom.label} -->\n`;
+                xml += `<Rule>\n  <Name>Tunnel Base ${zoom.label}</Name>\n`;
+                xml += `  <MaxScaleDenominator>${zoom.maxScale}</MaxScaleDenominator>\n`;
+                if (zoom.minScale > 0) xml += `  <MinScaleDenominator>${zoom.minScale}</MinScaleDenominator>\n`;
+                
+                // Casing
+                const casingMap = {};
+                const paveMap = {};
+                const offsetMap = {};
+                for (let i = 1; i <= 5; i++) {
+                    casingMap[i] = zoom.lanes[i].casing;
+                    paveMap[i] = zoom.lanes[i].pave;
+                    offsetMap[i] = zoom.lanes[i].offset;
+                }
+
+                xml += `  <!-- Casing -->\n  <LineSymbolizer>\n    <Stroke>\n      <CssParameter name="stroke">${config.colors.tunnelCasing}</CssParameter>\n      <CssParameter name="stroke-width">\n`;
+                xml += genRecode('lanes', casingMap).replace(/^/gm, '        ');
+                xml += `\n      </CssParameter>\n    </Stroke>\n    <PerpendicularOffset>\n`;
+                xml += genRecode('lanes', offsetMap).replace(/^/gm, '      ');
+                xml += `\n    </PerpendicularOffset>\n  </LineSymbolizer>\n`;
+
+                // Pavement
+                xml += `  <!-- Pavement -->\n  <LineSymbolizer>\n    <Stroke>\n      <CssParameter name="stroke">${config.colors.tunnelPave}</CssParameter>\n      <CssParameter name="stroke-width">\n`;
+                xml += genRecode('lanes', paveMap).replace(/^/gm, '        ');
+                xml += `\n      </CssParameter>\n    </Stroke>\n    <PerpendicularOffset>\n`;
+                xml += genRecode('lanes', offsetMap).replace(/^/gm, '      ');
+                xml += `\n    </PerpendicularOffset>\n  </LineSymbolizer>\n`;
+                
+                xml += `</Rule>\n\n`;
+            });
+
+            // Markings (Categorize logic is complex to reverse-engineer perfectly into the existing SLD structure 
+            // without creating a massive amount of redundant rules if we change the structure. 
+            // For now, I will output a note about Markings or try to generate the Categorize block if possible, 
+            // but the editor structure separates them by zoom which maps better to Rules than Categorize functions.
+            // Actually, the SLD uses Categorize inside specific Lane rules.
+            // I will output the raw values for the user to manually update the Categorize functions if needed, 
+            // or just output the specific rules if they prefer that style.)
+            
+            xml += `<!-- NOTE: For Markings, update the Categorize functions in the SLD with these values:\n`;
+            config.zooms.forEach(z => {
+                xml += `  ${z.label}: Width ${z.markings.width}, Opacity ${z.markings.opacity}\n`;
+                for(let l=2; l<=5; l++) {
+                    xml += `    Lane ${l} Offsets: ${z.lanes[l].markOffsets.join(', ')}\n`;
+                }
+            });
+            xml += `-->`;
+
+            document.getElementById('xmlOutput').value = xml;
+            document.getElementById('xmlModal').style.display = 'block';
+        };
+
+        window.closeModal = () => {
+            document.getElementById('xmlModal').style.display = 'none';
+        };
+
+        // Start
+        init();
+
+    </script>
+</body>
+</html>
