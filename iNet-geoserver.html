@@ -19,44 +19,109 @@
   </head>
   <body>
     <div id="map"></div>
-    <script src="https://unpkg.com/leaflet@1/dist/leaflet.js"></script>
-    <script>
-      // 1) Create map in Web Mercator
-      //const map = L.map('map').setView([42.346070, -71.059578], 16);
-      const map = L.map("map").setView(
-        [42.36830611868643, -71.04633693626431],
-        16
-      );
+<script src="https://unpkg.com/leaflet@1/dist/leaflet.js"></script>
+<script>
+  // 1) Create map
+  const map = L.map('map').setView([42.36830611868643, -71.04633693626431], 16);
 
-      // 2) Base map (OSM)
-      // L.tileLayer("http://10.95.2.210:8080/data/tiles/{z}/{x}/{y}.pbf", {
-      L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png",
-        {
-          maxZoom: 20,
-          attribution: "&copy; OpenStreetMap contributors",
+  // 2) Base Layer
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // 3) WMS overlay 
+  const wmsUrl = 'http://10.95.2.87:8886/geoserver/wms';
+  const layerName = 'iNet:massdot_tunnels_v3'; // Store layer name in variable for reuse
+
+  const tunnelBaseLayer = L.tileLayer.wms(wmsUrl, {
+    layers: layerName,
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  }).addTo(map);
+
+  // 4) CLICK HANDLER FOR GETFEATUREINFO
+  map.on('click', function(e) {
+    // A. Construct the GetFeatureInfo URL
+    var url = getFeatureInfoUrl(
+      map,
+      tunnelBaseLayer,
+      e.latlng,
+      {
+        'info_format': 'application/json', // Request JSON to parse properties easily
+        'query_layers': layerName,
+        'feature_count': 1
+      }
+    );
+
+    // B. Fetch data from GeoServer
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        // Check if we hit a feature
+        if (data.features && data.features.length > 0) {
+          const feature = data.features[0];
+          const props = feature.properties;
+          
+          // C. Build HTML Table from properties
+          let content = '<table style="width:100%; font-family:sans-serif; font-size:12px;">';
+          for (let key in props) {
+             // Skip null values or internal IDs if desired
+             if (props[key] !== null) { 
+               content += `<tr><td style="font-weight:bold; color:#666;">${key}</td><td>${props[key]}</td></tr>`;
+             }
+          }
+          content += '</table>';
+
+          // D. Open the Popup
+          L.popup()
+            .setLatLng(e.latlng)
+            .setContent(content)
+            .openOn(map);
+        } else {
+          console.log("No features found at this location.");
         }
-      ).addTo(map);
+      })
+      .catch(err => console.error('Error fetching feature info:', err));
+  });
 
-      // 3) WMS overlay for "massgisdemo:massgisdemo__roadway" with custom style
-      //const wmsUrl = 'http://localhost:8886/geoserver/wms';
-      const wmsUrl = "http://10.95.2.87:8886/geoserver/wms";
+  // HELPER FUNCTION: Calculates WMS URL parameters
+  function getFeatureInfoUrl(map, layer, latlng, params) {
+    var point = map.latLngToContainerPoint(latlng, map.getZoom()),
+        size = map.getSize(),
+        bounds = map.getBounds(),
+        sw = bounds.getSouthWest(),
+        ne = bounds.getNorthEast(),
+        sw = map.project(bounds.getSouthWest(), map.getZoom()),
+        ne = map.project(bounds.getNorthEast(), map.getZoom());
 
-      const tunnelBaseLayer = L.tileLayer
-        .wms(wmsUrl, {
-          layers: "iNet:massdot_tunnels_v3",
-          //styles: 'iNet:TunnelsAttributeStyles', // Apply the GeoServer style
-          format: "image/png",
-          transparent: true,
-          version: "1.1.1",
-          tiled: true,
-        })
-        .addTo(map);
+    // Basic WMS Params
+    var defaultParams = {
+      request: 'GetFeatureInfo',
+      service: 'WMS',
+      srs: 'EPSG:3857', // Assuming Web Mercator
+      styles: '',
+      version: layer.wmsParams.version,
+      format: layer.wmsParams.format,
+      bbox: [sw.x, ne.y, ne.x, sw.y].join(','), // BBOX logic for WMS 1.1.1
+      height: size.y,
+      width: size.x,
+      layers: layer.wmsParams.layers,
+      query_layers: layer.wmsParams.layers,
+      info_format: 'text/html'
+    };
 
-      // Optional: Log tile errors
-      roadwayLayer.on("tileerror", (e) =>
-        console.error("Roadway WMS tile error", e)
-      );
-    </script>
+    params = L.Util.extend(defaultParams, params || {});
+
+    // Add X and Y (or I and J) based on version
+    params[params.version === '1.3.0' ? 'i' : 'x'] = Math.round(point.x);
+    params[params.version === '1.3.0' ? 'j' : 'y'] = Math.round(point.y);
+
+    return layer._url + L.Util.getParamString(params, layer._url, true);
+  }
+
+</script>
   </body>
 </html>
