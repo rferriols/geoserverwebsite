@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>MassDot Tunnels</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1/dist/leaflet.css"
+    />
+    <style>
+      html,
+      body,
+      #map {
+        height: 100%;
+        margin: 0;
+      }
+      #controls {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 1000;
+        background: white;
+        padding: 10px;
+        border-radius: 5px;
+        box-shadow: 0 0 5px rgba(0,0,0,0.3);
+      }
+      button {
+        display: block;
+        margin: 5px 0;
+        width: 100%;
+        cursor: pointer;
+      }
+      #layerListPopup {
+        display: none;
+        position: absolute;
+        top: 60px;
+        right: 10px;
+        width: 300px;
+        max-height: 400px;
+        overflow-y: auto;
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(10px);
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        z-index: 2000;
+        padding: 15px;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      }
+      #layerListPopup h3 {
+        margin-top: 0;
+        color: #333;
+        border-bottom: 1px solid #eee;
+        padding-bottom: 10px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .layer-item {
+        padding: 8px;
+        border-bottom: 1px solid #f0f0f0;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      .layer-item:hover {
+        background: #f5f5f5;
+      }
+      .close-btn {
+        cursor: pointer;
+        color: #999;
+        font-size: 20px;
+      }
+      .close-btn:hover {
+        color: #333;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="controls">
+      <button id="btnLoad" onclick="loadAllSegments()">Load All Segments</button>
+      <button id="btnShow" onclick="showAllSegments()" style="display:none;">Show All Segments</button>
+      <button id="btnHide" onclick="hideAllSegments()" style="display:none;">Hide All Segments</button>
+    </div>
+    
+    <div id="layerListPopup">
+        <h3>
+            Layers (Segments)
+            <span class="close-btn" onclick="document.getElementById('layerListPopup').style.display='none'">&times;</span>
+        </h3>
+        <div id="layerListActions">
+            <button onclick="showSelectedLayers()" style="width:48%; display:inline-block; margin-right:2%;">Show Selected</button>
+            <button onclick="hideSelectedLayers()" style="width:48%; display:inline-block;">Hide Selected</button>
+        </div>
+        <div id="layerListContent"></div>
+    </div>
+
+<script src="https://unpkg.com/leaflet@1/dist/leaflet.js"></script>
+<script>
+  // 1) Create map
+  const map = L.map('map').setView([42.36830611868643, -71.04633693626431], 16);
+
+  // 2) Base Layer
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    maxZoom: 20,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  // 3) WMS overlay 
+  // We will add this to the map in loadAllSegments so it matches the data load
+  const layerName = 'iNet:MASSDOT_Postgres'; 
+  const wmsUrl = 'http://10.95.2.87:8886/geoserver/wms';
+  
+  const wmsLayer = L.tileLayer.wms(wmsUrl, {
+    layers: layerName,
+    format: 'image/png',
+    transparent: true,
+    version: '1.1.1',
+    tiled: true
+  });
+
+  // 5) ALL SEGMENTS LOGIC
+  let vectorLayer = null; // Transparent layer for interaction
+  let allFeatureIds = []; // Keep track of all IDs
+  let hiddenFeatureIds = new Set(); // Track hidden IDs
+
+  function loadAllSegments() {
+    const wfsUrl = 'http://10.95.2.87:8886/geoserver/wfs';
+    const params = {
+      service: 'WFS',
+      version: '1.0.0',
+      request: 'GetFeature',
+      typeName: layerName,
+      outputFormat: 'application/json'
+    };
+
+    const url = wfsUrl + L.Util.getParamString(params, wfsUrl, true);
+
+    fetch(url)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status} ${response.statusText}`);
+        }
+        return response.text().then(text => {
+          try {
+            return JSON.parse(text);
+          } catch (e) {
+            console.error('Server returned non-JSON response:', text);
+            throw new Error('Response was not valid JSON. See console for details.');
+          }
+        });
+      })
+      .then(data => {
+        // Reset state
+        if (vectorLayer) map.removeLayer(vectorLayer);
+        if (map.hasLayer(wmsLayer)) map.removeLayer(wmsLayer);
+        hiddenFeatureIds.clear();
+        allFeatureIds = [];
+
+        // Add WMS Layer (Visuals)
+        wmsLayer.addTo(map);
+
+        // Add Vector Layer (Interaction - Transparent)
+        vectorLayer = L.geoJSON(data, {
+          style: function(feature) {
+            return {
+              color: '#000000', 
+              weight: 5,
+              opacity: 0, // Transparent
+              fillOpacity: 0
+            };
+          },
+          onEachFeature: function(feature, layer) {
+            // Store ID
+            const id = feature.id; // e.g. 'layer.1'
+            if (id) allFeatureIds.push(id);
+
+            if (feature.properties) {
+              let content = '<table style="width:100%; font-family:sans-serif; font-size:12px;">';
+              for (let key in feature.properties) {
+                 if (feature.properties[key] !== null) { 
+                   content += `<tr><td style="font-weight:bold; color:#666;">${key}</td><td>${feature.properties[key]}</td></tr>`;
+                 }
+              }
+              content += '</table>';
+              layer.bindPopup(content);
+            }
+          }
+        }).addTo(map);
+
+        // Update UI
+        document.getElementById('btnLoad').style.display = 'none';
+        document.getElementById('btnShow').style.display = 'none'; // Already shown
+        document.getElementById('btnHide').style.display = 'block';
+        
+        // Fit bounds to show the data
+        if (vectorLayer.getBounds().isValid()) {
+            map.fitBounds(vectorLayer.getBounds());
+        }
+
+        // Populate and show the popup list
+        const listContainer = document.getElementById('layerListContent');
+        listContainer.innerHTML = '';
+        
+        // Use eachLayer to get the actual Leaflet layer objects
+        vectorLayer.eachLayer(function(layer) {
+            const feature = layer.feature;
+            const div = document.createElement('div');
+            div.className = 'layer-item';
+            
+            // Try to find a meaningful name
+            const props = feature.properties || {};
+            const name = props.orig_name || props.name_orig || props.name || props.Name || props.NAME || 
+                         props.tunnel_name || props.Tunnel_Name || 
+                         feature.id || `Segment`;
+            
+            // Create checkbox
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'layer-select';
+            checkbox.value = feature.id; // Use Feature ID for robust filtering
+            checkbox.style.marginRight = '10px';
+            
+            // Label container
+            const labelSpan = document.createElement('span');
+            labelSpan.innerHTML = `<strong>${name}</strong>`;
+            labelSpan.style.cursor = 'pointer';
+            
+            // Click on label to zoom
+            labelSpan.onclick = (e) => {
+               e.stopPropagation(); 
+               map.flyTo(layer.getBounds().getCenter(), 18);
+               layer.openPopup();
+            };
+
+            div.appendChild(checkbox);
+            div.appendChild(labelSpan);
+            listContainer.appendChild(div);
+        });
+        
+        document.getElementById('layerListPopup').style.display = 'block';
+
+      })
+      .catch(err => {
+        console.error('Error loading segments:', err);
+        alert(`Error loading data: ${err.message}`);
+      });
+  }
+
+  function updateMapVisibility() {
+      const allCount = allFeatureIds.length;
+      const hiddenCount = hiddenFeatureIds.size;
+      const visibleCount = allCount - hiddenCount;
+
+      // 1. Update WMS Layer
+      // We need to clear conflicting params from the layer instance first
+      // Leaflet's setParams extends the existing params, so we must manually remove old ones
+      delete wmsLayer.wmsParams.featureid;
+      delete wmsLayer.wmsParams.cql_filter;
+
+      let newParams = {};
+
+      if (visibleCount === 0) {
+           // Hide all
+           newParams.cql_filter = '1=0';
+      } else if (hiddenCount === 0) {
+           // Show all - no filter params needed
+      } else {
+           // Heuristic: Use the shorter list to keep URL short
+           if (hiddenCount < visibleCount) {
+               // Exclude hidden using CQL NOT IN
+               const hiddenList = Array.from(hiddenFeatureIds).map(id => `'${id}'`).join(',');
+               newParams.cql_filter = `NOT (IN (${hiddenList}))`;
+           } else {
+               // Include visible using featureid (standard for inclusion)
+               const visibleIds = allFeatureIds.filter(id => !hiddenFeatureIds.has(id));
+               newParams.featureid = visibleIds.join(',');
+           }
+      }
+      
+      wmsLayer.setParams(newParams);
+
+      // 2. Update Vector Layer (Interaction)
+      if (vectorLayer) {
+          vectorLayer.eachLayer(layer => {
+              if (layer.feature && layer.feature.id) {
+                  if (hiddenFeatureIds.has(layer.feature.id)) {
+                      map.removeLayer(layer);
+                  } else {
+                      if (!map.hasLayer(layer)) {
+                          map.addLayer(layer);
+                      }
+                  }
+              }
+          });
+      }
+  }
+
+  function showAllSegments() {
+    hiddenFeatureIds.clear();
+    updateMapVisibility();
+    if (!map.hasLayer(wmsLayer)) map.addLayer(wmsLayer);
+    document.getElementById('btnShow').style.display = 'none';
+    document.getElementById('btnHide').style.display = 'block';
+  }
+
+  function hideAllSegments() {
+    // Hide everything
+    allFeatureIds.forEach(id => hiddenFeatureIds.add(id));
+    updateMapVisibility();
+    // Also remove WMS layer to be sure
+    if (map.hasLayer(wmsLayer)) map.removeLayer(wmsLayer);
+    
+    document.getElementById('btnShow').style.display = 'block';
+    document.getElementById('btnHide').style.display = 'none';
+  }
+
+  function getSelectedIds() {
+      const checkboxes = document.querySelectorAll('.layer-select:checked');
+      const selectedIds = [];
+      checkboxes.forEach(cb => selectedIds.push(cb.value));
+      return selectedIds;
+  }
+
+  function hideSelectedLayers() {
+      const selectedIds = getSelectedIds();
+      selectedIds.forEach(id => hiddenFeatureIds.add(id));
+      updateMapVisibility();
+  }
+
+  function showSelectedLayers() {
+      const selectedIds = getSelectedIds();
+      selectedIds.forEach(id => hiddenFeatureIds.delete(id));
+      updateMapVisibility();
+  }
+
+</script>
+  </body>
+</html>
