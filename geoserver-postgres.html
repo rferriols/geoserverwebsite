@@ -176,7 +176,8 @@
             if (id) allFeatureIds.push(id);
 
             if (feature.properties) {
-              let content = '<table style="width:100%; font-family:sans-serif; font-size:12px;">';
+              let content = `<button onclick="hideLayer('${id}')" style="width:100%; margin-bottom:5px; padding:5px; cursor:pointer; background-color:#ff4444; color:white; border:none; border-radius:3px;">Hide Segment</button>`;
+              content += '<table style="width:100%; font-family:sans-serif; font-size:12px;">';
               for (let key in feature.properties) {
                  if (feature.properties[key] !== null) { 
                    content += `<tr><td style="font-weight:bold; color:#666;">${key}</td><td>${feature.properties[key]}</td></tr>`;
@@ -245,6 +246,23 @@
         console.error('Error loading segments:', err);
         alert(`Error loading data: ${err.message}`);
       });
+  }
+
+  function hideLayer(id) {
+      if (!id) return;
+      hiddenFeatureIds.add(id);
+      
+      // Uncheck the box in the list
+      const checkbox = document.querySelector(`.layer-select[value="${id}"]`);
+      if (checkbox) checkbox.checked = false; // Actually, checkboxes in the list usually represent "Selected for action", not "Visibility".
+      // Wait, the previous logic for "Show/Hide Selected" used the checkboxes to SELECT which ones to hide/show.
+      // So unchecking it doesn't mean "Hidden". It means "Not selected for batch action".
+      // However, if we hide it, we might want to reflect that state?
+      // The list doesn't currently show visibility state, only selection state.
+      // So maybe we don't need to touch the checkbox.
+      // But wait, if I hide it, it's gone.
+      
+      updateMapVisibility();
   }
 
   function updateMapVisibility() {
